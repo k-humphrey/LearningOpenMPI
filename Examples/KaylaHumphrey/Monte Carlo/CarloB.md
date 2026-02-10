@@ -13,4 +13,7 @@ srand
 
 https://apurvanakade.github.io/Monte-Carlo-Methods/chapters/estimation/estimating_pi.html
 
-PI = 4.0*circle_count/npoints
+
+
+float pi = 4.0 * circle_count / npoints;
+printf("Pi has been approximated to: %f\n", pi);
