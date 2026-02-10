@@ -26,7 +26,7 @@ int main(int argc, char* argv[]){
       each process has it's own circle_count variable,
       and we figure out an even number of points to generate per process*/
     int npoints = atoi(argv[1]);
-    int circle_count = 0;
+    int circle_count = 0, total_count = 0;
     int remainderPartition = npoints % numOfProcesses;
     int myPartition = npoints/numOfProcesses; 
     float x, y;
@@ -45,25 +45,11 @@ int main(int argc, char* argv[]){
         }
     }
 
-    /*send data to task 0*/
-    if(taskID != 0){
-        MPI_Isend(&circle_count, 1, MPI_INT, 0, 1, comm, &request[taskID - 1]);
-    }
+    /*this function will take all of the data, sum it, and store it into total_count for task 0*/
+    MPI_Reduce(&circle_count, &total_count, 1, MPI_INT, MPI_SUM, 0, comm);
 
     
-
-    /*now we need to combine circle_count to get our approximation*/
     if(taskID == 0){
-        /*spawn off all of the recieving at once, then wait for all to be recieved*/
-        for(int i = 1; i < numOfProcesses; i++){
-            MPI_Irecv(&message[i - 1], 1, MPI_INT, i, 1, comm, &request[i - 1]);
-        }
-        MPI_Waitall(numOfProcesses - 1, request, MPI_STATUS_IGNORE);
-        /*combine counts from all processes*/
-        int total_count = circle_count; 
-        for(int i = 0; i < numOfProcesses - 1; i++){
-            total_count += message[i];   
-        }
         float pi = 4.0 * total_count / npoints;
         printf("Pi has been approximated to: %f\n", pi);
     }
