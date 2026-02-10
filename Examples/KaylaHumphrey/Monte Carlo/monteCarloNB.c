@@ -5,13 +5,14 @@
 
 int main(int argc, char* argv[]){
     /*setup*/
+    double start_time =  MPI_Wtime();
     int numOfProcesses, taskID, resultLength, partnerID, message[numOfProcesses - 1];
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(comm, &numOfProcesses);
     MPI_Comm_rank(comm, &taskID);
     srand(time(NULL) + taskID);
-    MPI_Request request[numOfProcesses - 1];
+    MPI_Request request;
 
     /*Not doing odd processes yet*/
     if(numOfProcesses % 2 != 0){
@@ -47,11 +48,12 @@ int main(int argc, char* argv[]){
 
     /*this function will take all of the data, sum it, and store it into total_count for task 0*/
     MPI_Reduce(&circle_count, &total_count, 1, MPI_INT, MPI_SUM, 0, comm);
-
     
     if(taskID == 0){
         float pi = 4.0 * total_count / npoints;
+        double end_time =  MPI_Wtime();
         printf("Pi has been approximated to: %f\n", pi);
+        printf("This approximation took %f seconds.\n", end_time - start_time);
     }
 
     MPI_Finalize();

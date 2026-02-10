@@ -4,6 +4,7 @@
 #include <time.h>
 
 int main(int argc, char* argv[]){
+    double start_time =  MPI_Wtime();
     /*setup*/
     int numOfProcesses, taskID, resultLength, partnerID, message;
     MPI_Comm comm = MPI_COMM_WORLD;
@@ -59,7 +60,9 @@ int main(int argc, char* argv[]){
             circle_count += message;
         }
         float pi = 4.0 * circle_count / npoints;
+        double end_time =  MPI_Wtime();
         printf("Pi has been approximated to: %f\n", pi);
+        printf("This approximation took %f seconds.\n", end_time - start_time);
     }
 
     MPI_Finalize();
