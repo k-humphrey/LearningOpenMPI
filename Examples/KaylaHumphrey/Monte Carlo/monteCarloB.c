@@ -4,15 +4,16 @@
 #include <time.h>
 
 int main(int argc, char* argv[]){
-    double start_time =  MPI_Wtime();
     /*setup*/
-    int numOfProcesses, taskID, resultLength, partnerID, message;
+    int numOfProcesses, taskID, partnerID;
+    long long message;
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Status status;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(comm, &numOfProcesses);
     MPI_Comm_rank(comm, &taskID);
     srand(time(NULL) + taskID);
+
 
     /*Not doing odd processes yet*/
     if(numOfProcesses % 2 != 0){
@@ -23,21 +24,27 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
+    /*Synchronize the start of all timers*/
+    MPI_Barrier(comm);
+    double start_time =  MPI_Wtime();
+
     /*We can set the amount of points we want to generate through the command line,
       each process has it's own circle_count variable,
-      and we figure out an even number of points to generate per process*/
-    int npoints = atoi(argv[1]);
-    int circle_count = 0;
-    int remainderPartition = npoints % numOfProcesses;
-    int myPartition = npoints/numOfProcesses; 
+      and we figure out an even-ish number of points to generate per process*/
+    long long npoints = atoll(argv[1]);
+    long long circle_count = 0;
+    long long remainderPartition = npoints % numOfProcesses;
+    long long myPartition = npoints / numOfProcesses; 
     float x, y;
 
-    if(taskID == 0){
+    /*Deal with imbalances.. cheaply, 
+    not giving it to task 0 because it already has extra work*/
+    if(taskID == 1){
         myPartition += remainderPartition;
     }
+
     /*compute circle counts individually*/
-    for(int i = 0; i < myPartition; i++){
-        /*generate two random points from 0 to 1*/
+    for(long long i = 0; i < myPartition; i++){
         x = (float)rand() / RAND_MAX;
         y = (float)rand() / RAND_MAX;
         if((x * x) + (y * y) <= 1.0){
@@ -47,22 +54,43 @@ int main(int argc, char* argv[]){
 
     /*send data to task 0*/
     if(taskID != 0){
-        MPI_Send(&circle_count, 1, MPI_INT, 0, 1, comm);
+        MPI_Send(&circle_count, 1, MPI_LONG_LONG, 0, 1, comm);
     }
+
+    /*capture when each computation + send is done with*/
+    double end_time =  MPI_Wtime();
+    double total_time = end_time - start_time;
 
     /*MPI barrier makes sure that all processes in the comm group finish before we recieve and calculate pi*/
     MPI_Barrier(comm);
+    
+    /*then get the longest time and average time excluding task 0's true times*/
+    double max_time, average_time;
+    MPI_Reduce(&total_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+    MPI_Reduce(&total_time, &average_time, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
 
     /*now we need to combine circle_count to get our approximation*/
     if(taskID == 0){
         for(int i = 1; i < numOfProcesses; i++){
-            MPI_Recv(&message, 1, MPI_INT, i, 1, comm, &status);
+            MPI_Recv(&message, 1, MPI_LONG_LONG, i, 1, comm, &status);
             circle_count += message;
         }
         float pi = 4.0 * circle_count / npoints;
-        double end_time =  MPI_Wtime();
+
+        /*capture task0's true end time*/
+        end_time = MPI_Wtime();
+        double old_total_time = total_time;
+        total_time = end_time - start_time;
+
+        /*recalculate average and check if we are the new max*/
+        if(total_time > max_time){
+            max_time = total_time;
+        }
+        average_time +=  total_time - old_total_time;
+        average_time /= numOfProcesses;
+
         printf("Pi has been approximated to: %f\n", pi);
-        printf("This approximation took %f seconds.\n", end_time - start_time);
+        printf("Max seconds: %f Average seconds: %f\n", max_time, average_time);
     }
 
     MPI_Finalize();
